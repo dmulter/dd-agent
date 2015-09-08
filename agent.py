@@ -37,11 +37,13 @@ from emitter import http_emitter
 from util import (
     EC2,
     get_hostname,
-    Watchdog,
+    WatchdogUnix,
+    WatchdogWindows,
 )
 from utils.flare import configcheck, Flare
 from utils.jmx import jmx_command
 from utils.pidfile import PidFile
+from utils.platform import Platform
 from utils.profile import AgentProfiler
 
 # Constants
@@ -77,10 +79,6 @@ class Agent(Daemon):
             self.collector.stop()
         log.debug("Collector is stopped.")
 
-    def _handle_sigusr1(self, signum, frame):
-        self._handle_sigterm(signum, frame)
-        self._do_restart()
-
     @classmethod
     def info(cls, verbose=None):
         logging.getLogger().setLevel(logging.ERROR)
@@ -92,10 +90,7 @@ class Agent(Daemon):
         # Gracefully exit on sigterm.
         signal.signal(signal.SIGTERM, self._handle_sigterm)
 
-        if os.name != 'nt':
-            # A SIGUSR1 signals an exit with an autorestart
-            signal.signal(signal.SIGUSR1, self._handle_sigusr1)
-
+        if Platform.is_win32(sys.platform):
             # Handle Keyboard Interrupt
             signal.signal(signal.SIGINT, self._handle_sigterm)
 
@@ -181,8 +176,11 @@ class Agent(Daemon):
     def _get_watchdog(self, check_freq, agentConfig):
         watchdog = None
         if agentConfig.get("watchdog", True):
-            watchdog = Watchdog(check_freq * WATCHDOG_MULTIPLIER,
-                                max_mem_mb=agentConfig.get('limit_memory_consumption', None))
+            if Platform.is_win32(sys.platform):
+                watchdog = WatchdogWindows(check_freq * WATCHDOG_MULTIPLIER)
+            else:
+                watchdog = WatchdogUnix(check_freq * WATCHDOG_MULTIPLIER,
+                                    max_mem_mb=agentConfig.get('limit_memory_consumption', None))
             watchdog.reset()
         return watchdog
 

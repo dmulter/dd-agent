@@ -403,11 +403,6 @@ class HTMLWindow(QTextEdit):
 
 class MainWindow(QSplitter):
     def __init__(self, parent=None):
-        prefix_conf = ''
-
-        if Platform.is_windows():
-            prefix_conf = 'windows_'
-
         log_conf = get_logging_config()
 
         QSplitter.__init__(self, parent)
@@ -420,7 +415,7 @@ class MainWindow(QSplitter):
 
         checks = get_checks()
         datadog_conf = DatadogConf(get_config_path())
-        self.create_logs_files_windows(log_conf, prefix_conf)
+        self.create_logs_files_windows(log_conf)
 
         listwidget = QListWidget(self)
         listwidget.addItems([osp.basename(check.module_name).replace("_", " ").title() for check in checks])
@@ -440,10 +435,23 @@ class MainWindow(QSplitter):
                 self.show_html(self.properties.group_code, self.properties.html_window, False)]),
             ("JMX Fetch Logs", lambda: [self.properties.set_log_file(self.jmxfetch_log_file),
                 self.show_html(self.properties.group_code, self.properties.html_window, False)]),
+        ]
+
+        if Platform.is_windows():
+            self.settings.extend([
+                ("Supervisor Logs", lambda: [self.properties.set_log_file(self.supervisor_log_file),
+                    self.show_html(self.properties.group_code, self.properties.html_window, False)]),
+                ("Service Logs", lambda: [self.properties.set_log_file(self.service_log_file),
+                    self.show_html(self.properties.group_code, self.properties.html_window, False)]),
+            ])
+
+
+
+        self.settings.append(
             ("Agent Status", lambda: [self.properties.html_window.setHtml(self.properties.html_window.latest_status()),
                 self.show_html(self.properties.group_code, self.properties.html_window, True),
                 self.properties.set_status()]),
-        ]
+        )
 
         self.agent_settings = QPushButton(get_icon("edit.png"),
                                           "Settings", self)
@@ -521,18 +529,26 @@ class MainWindow(QSplitter):
             editor.setVisible(True)
             html.setVisible(False)
 
-    def create_logs_files_windows(self, config, prefix):
+    def create_logs_files_windows(self, config):
         self.forwarder_log_file = EditorFile(
-            config.get('%sforwarder_log_file' % prefix),
+            config.get('forwarder_log_file'),
             "Forwarder log file"
         )
         self.collector_log_file = EditorFile(
-            config.get('%scollector_log_file' % prefix),
+            config.get('collector_log_file'),
             "Collector log file"
         )
         self.dogstatsd_log_file = EditorFile(
-            config.get('%sdogstatsd_log_file' % prefix),
+            config.get('dogstatsd_log_file'),
             "Dogstatsd log file"
+        )
+        self.supervisor_log_file = EditorFile(
+            config.get('supervisor_log_file'),
+            "Supervisor log file"
+        )
+        self.service_log_file = EditorFile(
+            config.get('service_log_file'),
+            "Service log file"
         )
         self.jmxfetch_log_file = EditorFile(
             config.get('jmxfetch_log_file'),
