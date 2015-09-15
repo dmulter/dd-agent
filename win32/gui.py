@@ -92,9 +92,18 @@ AGENT_UNKNOWN = 4
 # Windows management
 # Import Windows stuff only on Windows
 if Platform.is_windows():
+    # win32
+    import win32api
+    import win32con
     import win32gui
+    import win32process
     import win32serviceutil
     import win32service
+
+    # project
+    from utils.pidfile import PidFile
+    from utils.process import pid_exists
+
     WIN_STATUS_TO_AGENT = {
         win32service.SERVICE_RUNNING: AGENT_RUNNING,
         win32service.SERVICE_START_PENDING: AGENT_START_PENDING,
@@ -807,15 +816,63 @@ def warning_popup(message, parent=None):
 def info_popup(message, parent=None):
     QMessageBox.information(parent, 'Message', message, QMessageBox.Ok)
 
-
-if __name__ == '__main__':
+def spawn_or_kill_old_process():
+    """ Kills or brings to the foreground (if possible) any other instance of this program. It
+    avoids multiple icons in the Tray on Windows. On OSX, we don't have to do anything: icons
+    don't get duplicated. """
     # On Windows, if a window is already opened, let's just bring it on the foreground
     if Platform.is_windows():
-        agent_manager_exe = win32gui.FindWindowEx(0, 0, None, MAIN_WINDOW_TITLE)
+        # Is there another Agent Manager process running ?
+        pidfile = PidFile('agent-manager-gui').get_path()
 
-        if agent_manager_exe is not 0:
-            win32gui.SetForegroundWindow(agent_manager_exe)
-            exit(0)
+        old_pid = None
+        try:
+            pf = file(pidfile, 'r')
+            old_pid = int(pf.read().strip())
+            pf.close()
+        except IOError:
+            pass
+        except ValueError:
+            pass
+
+        if old_pid is not None and pid_exists(old_pid):
+            # Let's make sur that the process under this pid is actually our Agent's GUI
+            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, old_pid)
+            exe_path = win32process.GetModuleFileNameEx(handle, 0)
+
+            if 'agent-manager' in exe_path:
+                # If the window is in the background, let's just bring it in the forground
+                agent_manager_exe = win32gui.FindWindowEx(0, 0, None, MAIN_WINDOW_TITLE)
+
+                if agent_manager_exe is not 0:
+                    win32gui.SetForegroundWindow(agent_manager_exe)
+                    win32api.CloseHandle(handle)
+                    sys.exit(0)
+                else:
+                    # Let's kill the old process before starting ours
+                    win32api.TerminateProcess(handle, -1)
+
+            win32api.CloseHandle(handle)
+
+        # If we reached that point it means the current process should be the only running
+        # agent-manager.exe, let's save its pid
+        pid = str(os.getpid())
+        try:
+            fp = open(pidfile, 'w+')
+            fp.write(str(pid))
+            fp.close()
+        except Exception, e:
+            msg = "Unable to write pidfile: %s" % pidfile
+            log.exception(msg)
+            sys.stderr.write(msg + "\n")
+            sys.exit(1)
+
+
+if __name__ == '__main__':
+    # Let's bring to the foreground or kill any other running instance of our GUI/SystemTray if
+    # we can't. This function will have the program exit if another instance of it was brought to
+    # the foreground.
+    spawn_or_kill_old_process()
 
     app = QApplication([])
     if Platform.is_mac():
