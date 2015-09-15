@@ -92,6 +92,7 @@ AGENT_UNKNOWN = 4
 # Windows management
 # Import Windows stuff only on Windows
 if Platform.is_windows():
+    import win32gui
     import win32serviceutil
     import win32service
     WIN_STATUS_TO_AGENT = {
@@ -792,6 +793,14 @@ def info_popup(message, parent=None):
 
 
 if __name__ == '__main__':
+    # On Windows, if a window is already opened, let's just bring it on the foreground
+    if Platform.is_windows():
+        agent_manager_exe = win32gui.FindWindowEx(0, 0, None, MAIN_WINDOW_TITLE)
+
+        if agent_manager_exe is not 0:
+            win32gui.SetForegroundWindow(agent_manager_exe)
+            exit(0)
+
     app = QApplication([])
     if Platform.is_mac():
         add_image_path(osp.join(os.getcwd(), 'images'))
