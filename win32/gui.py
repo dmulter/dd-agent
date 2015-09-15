@@ -835,6 +835,14 @@ def spawn_or_kill_old_process():
         except ValueError:
             pass
 
+        log.info("Check for running manager process")
+        if old_pid is not None:
+            log.info("Found pidfile with pid {0}".format(old_pid))
+
+            if(pid_exists(old_pid)):
+                log.info("And this pid exists !")
+
+
         if old_pid is not None and pid_exists(old_pid):
             # Let's make sur that the process under this pid is actually our Agent's GUI
             handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, old_pid)
