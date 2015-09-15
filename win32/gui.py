@@ -839,6 +839,7 @@ def spawn_or_kill_old_process():
             # Let's make sur that the process under this pid is actually our Agent's GUI
             handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, old_pid)
             exe_path = win32process.GetModuleFileNameEx(handle, 0)
+            log.info("Found running executable for old_pid: {0}".format(exe_path))
 
             if 'agent-manager' in exe_path:
                 # If the window is in the background, let's just bring it in the forground
